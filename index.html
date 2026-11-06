@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>나의 가계부</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2b59c3">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="가계부">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+  /* ===== 기본 스타일 ===== */
+  :root {
+    --bg: #f5f6f8; --card: #fff; --text: #1d1f24; --sub: #6b7280; --line: #e5e7eb;
+    --income: #1f7a4d; --expense: #c2410c; --accent: #2b59c3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#121417; --card:#1c1f24; --text:#eceef1; --sub:#9aa1ab; --line:#2c3038;
+            --income:#4ade80; --expense:#fb923c; --accent:#7aa2ff; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+         background:var(--bg); color:var(--text); padding-bottom:90px; }
+  header { position:sticky; top:0; background:var(--card); border-bottom:1px solid var(--line);
+           display:flex; align-items:center; justify-content:space-between; padding:12px 16px; z-index:5; }
+  header h1 { font-size:17px; margin:0; }
+  .month-nav { display:flex; align-items:center; gap:8px; }
+  .month-nav button { border:none; background:none; font-size:20px; color:var(--text); padding:4px 10px; }
+  .month-nav span { font-weight:600; min-width:90px; text-align:center; }
+  main { padding:12px; max-width:560px; margin:0 auto; }
+  .card { background:var(--card); border-radius:14px; padding:14px; margin-bottom:12px; }
+  .summary { display:grid; grid-template-columns:repeat(3,1fr); text-align:center; gap:4px; }
+  .summary small { color:var(--sub); font-size:12px; display:block; margin-bottom:4px; }
+  .summary b { font-size:15px; font-variant-numeric:tabular-nums; }
+  .inc { color:var(--income); } .exp { color:var(--expense); }
+  .tabs { display:flex; gap:6px; margin-bottom:12px; }
+  .tabs button { flex:1; padding:10px; border:none; border-radius:10px; background:var(--card);
+                 color:var(--sub); font-size:14px; }
+  .tabs button.on { background:var(--accent); color:#fff; font-weight:600; }
+  .day { font-size:12px; color:var(--sub); margin:12px 4px 6px; }
+  .item { display:flex; justify-content:space-between; align-items:center; padding:10px 0;
+          border-bottom:1px solid var(--line); }
+  .item:last-child { border-bottom:none; }
+  .item .cat { font-size:14px; }
+  .item .memo { font-size:12px; color:var(--sub); }
+  .item .amt { font-variant-numeric:tabular-nums; font-weight:600; }
+  .empty { text-align:center; color:var(--sub); padding:30px 0; font-size:14px; }
+  .bar-row { margin:10px 0; }
+  .bar-row .top { display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px; }
+  .bar { height:8px; background:var(--line); border-radius:4px; overflow:hidden; }
+  .bar div { height:100%; background:var(--accent); }
+  .bar div.over { background:var(--expense); }
+  .fab { position:fixed; right:20px; bottom:24px; width:58px; height:58px; border-radius:50%;
+         border:none; background:var(--accent); color:#fff; font-size:30px;
+         box-shadow:0 4px 12px rgba(0,0,0,.25); }
+  /* ===== 입력 시트 ===== */
+  .sheet-bg { position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; z-index:10; }
+  .sheet { position:fixed; left:0; right:0; bottom:0; background:var(--card); border-radius:18px 18px 0 0;
+           padding:18px; max-width:560px; margin:0 auto; }
+  .sheet h2 { margin:0 0 12px; font-size:17px; }
+  .seg { display:flex; gap:6px; margin-bottom:12px; }
+  .seg button { flex:1; padding:10px; border:1px solid var(--line); border-radius:10px;
+                background:none; color:var(--text); }
+  .seg button.on.e { background:var(--expense); color:#fff; border-color:var(--expense); }
+  .seg button.on.i { background:var(--income); color:#fff; border-color:var(--income); }
+  label { display:block; font-size:12px; color:var(--sub); margin:8px 0 4px; }
+  input, select { width:100%; padding:11px; border:1px solid var(--line); border-radius:10px;
+                  font-size:16px; background:var(--bg); color:var(--text); }
+  .btns { display:flex; gap:8px; margin-top:16px; }
+  .btns button { flex:1; padding:13px; border:none; border-radius:10px; font-size:15px; }
+  .save { background:var(--accent); color:#fff; font-weight:600; }
+  .del { background:var(--line); color:var(--expense); }
+  .cancel { background:var(--line); color:var(--text); }
+  textarea { width:100%; height:120px; font-size:12px; border-radius:10px; padding:8px;
+             background:var(--bg); color:var(--text); border:1px solid var(--line); }
+  .note { font-size:12px; color:var(--sub); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>가계부</h1>
+  <div class="month-nav">
+    <button id="prev">‹</button><span id="monthLabel"></span><button id="next">›</button>
+  </div>
+</header>
+
+<main>
+  <!-- 월 요약 -->
+  <div class="card summary">
+    <div><small>수입</small><b class="inc" id="sumIn">0</b></div>
+    <div><small>지출</small><b class="exp" id="sumOut">0</b></div>
+    <div><small>잔액</small><b id="sumBal">0</b></div>
+  </div>
+
+  <div class="tabs">
+    <button data-tab="list" class="on">내역</button>
+    <button data-tab="stats">예산</button>
+    <button data-tab="recur">고정비</button>
+    <button data-tab="data">백업</button>
+  </div>
+
+  <section id="tab-list"></section>
+  <section id="tab-stats" hidden></section>
+  <section id="tab-recur" hidden>
+    <div class="card" id="recurList"></div>
+    <div class="card">
+      <h2 style="font-size:15px;margin:0 0 4px">고정비 추가</h2>
+      <p class="note">등록한 달부터 매달 지정한 날짜에 내역이 자동으로 추가돼요.
+        (31일처럼 없는 날짜는 그 달의 마지막 날로 들어가요.)</p>
+      <div class="seg" id="rSeg">
+        <button type="button" data-type="expense" class="e on">지출</button>
+        <button type="button" data-type="income" class="i">수입</button>
+      </div>
+      <label>이름(메모)</label>
+      <input id="rMemo" type="text" placeholder="예: 월세, 넷플릭스, 월급">
+      <label>금액</label>
+      <input id="rAmount" type="number" inputmode="numeric" placeholder="0">
+      <label>매달 며칠</label>
+      <input id="rDay" type="number" inputmode="numeric" min="1" max="31" placeholder="1~31">
+      <label>카테고리</label>
+      <select id="rCat"></select>
+      <label>결제수단</label>
+      <select id="rPay">
+        <option>카드</option><option>현금</option><option>계좌이체</option><option>자동이체</option><option>기타</option>
+      </select>
+      <div class="btns"><button class="save" id="rSave">고정비 등록</button></div>
+      <p class="note" id="rMsg"></p>
+    </div>
+  </section>
+  <section id="tab-data" hidden>
+    <div class="card">
+      <p class="note">데이터는 이 기기의 브라우저에만 저장돼요. 가끔 아래 내용을 복사해서 보관하세요.</p>
+      <textarea id="backup"></textarea>
+      <div class="btns">
+        <button class="cancel" id="copyBtn">복사</button>
+        <button class="save" id="restoreBtn">붙여넣은 내용 불러오기</button>
+      </div>
+      <p class="note" id="dataMsg"></p>
+    </div>
+  </section>
+</main>
+
+<button class="fab" id="addBtn">+</button>
+
+<!-- 거래 입력/수정 시트 -->
+<div class="sheet-bg" id="sheetBg">
+  <form class="sheet" id="form">
+    <h2 id="formTitle">내역 추가</h2>
+    <div class="seg">
+      <button type="button" data-type="expense" class="e">지출</button>
+      <button type="button" data-type="income" class="i">수입</button>
+    </div>
+    <label>금액</label>
+    <input id="fAmount" type="number" inputmode="numeric" placeholder="0" required>
+    <label>날짜</label>
+    <input id="fDate" type="date" required>
+    <label>카테고리</label>
+    <select id="fCat"></select>
+    <label>결제수단</label>
+    <select id="fPay">
+      <option>카드</option><option>현금</option><option>계좌이체</option><option>기타</option>
+    </select>
+    <label>메모</label>
+    <input id="fMemo" type="text" placeholder="예: 점심, 마트">
+    <div class="btns">
+      <button type="button" class="del" id="delBtn">삭제</button>
+      <button type="button" class="cancel" id="cancelBtn">취소</button>
+      <button type="submit" class="save">저장</button>
+    </div>
+  </form>
+</div>
+
+<script>
+/* =========================================================
+   1. 데이터 구조
+   거래(transaction) 하나 = { id, type, amount, date, category, pay, memo }
+   예산(budgets) = { 카테고리이름: 월한도 }
+   ========================================================= */
+const CATEGORIES = {
+  expense: ['식비','카페·간식','주거·관리비','교통','통신','생활용품','의료','경조사','여가','쇼핑','기타'],
+  income:  ['월급','부수입','용돈','이자·배당','기타']
+};
+const DEFAULT_BUDGETS = { '식비':400000, '카페·간식':80000, '교통':100000, '여가':150000, '쇼핑':150000 };
+
+/* =========================================================
+   2. 저장소 (localStorage) — 실패해도 앱은 동작하도록 try/catch
+   ========================================================= */
+const KEY = 'my-budget-v1';
+// recurring: 고정비 규칙 목록 { id, type, amount, day, category, pay, memo, start:'YYYY-MM' }
+// recurDone: 이미 만들어진 달 기록 { '규칙id|YYYY-MM': true } — 같은 달에 두 번 생기지 않게
+let state = { tx: [], budgets: { ...DEFAULT_BUDGETS }, recurring: [], recurDone: {} };
+
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) state = { ...state, ...JSON.parse(raw) };
+  } catch (e) { /* 저장소를 못 쓰면 메모리에서만 동작 */ }
+}
+// 브라우저가 공간 부족 시 데이터를 지우지 않도록 '영구 저장' 요청
+try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
+
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+}
+
+/* =========================================================
+   3. 화면 상태
+   ========================================================= */
+let cur = new Date(); cur.setDate(1);   // 보고 있는 달
+let editingId = null;                   // 수정 중인 거래 id
+let formType = 'expense';
+
+const won = n => n.toLocaleString('ko-KR') + '원';
+const ym = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+const $ = id => document.getElementById(id);
+
+function monthTx() {
+  const key = ym(cur);
+  return state.tx.filter(t => t.date.startsWith(key))
+                 .sort((a,b) => b.date.localeCompare(a.date) || b.id - a.id);
+}
+
+/* =========================================================
+   4. 그리기
+   ========================================================= */
+function render() {
+  $('monthLabel').textContent = `${cur.getFullYear()}년 ${cur.getMonth()+1}월`;
+  const list = monthTx();
+
+  // 월 합계
+  const inSum  = list.filter(t => t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const outSum = list.filter(t => t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  $('sumIn').textContent = won(inSum);
+  $('sumOut').textContent = won(outSum);
+  $('sumBal').textContent = won(inSum - outSum);
+
+  // 내역 탭: 날짜별로 묶어서 표시
+  const box = $('tab-list');
+  if (!list.length) {
+    box.innerHTML = '<div class="card empty">이번 달 내역이 없어요.<br>오른쪽 아래 + 버튼으로 추가하세요.</div>';
+  } else {
+    const byDay = {};
+    list.forEach(t => (byDay[t.date] ||= []).push(t));
+    box.innerHTML = Object.entries(byDay).map(([day, items]) => {
+      const d = new Date(day);
+      const w = '일월화수목금토'[d.getDay()];
+      return `<div class="day">${d.getMonth()+1}월 ${d.getDate()}일 (${w})</div>
+        <div class="card">${items.map(t => `
+          <div class="item" data-id="${t.id}">
+            <div><div class="cat">${t.category}${t.recurId ? ' <span class="memo">🔁고정</span>' : ''}</div>
+                 <div class="memo">${escapeHtml(t.memo || '')} · ${t.pay}</div></div>
+            <div class="amt ${t.type==='income'?'inc':'exp'}">
+              ${t.type==='income'?'+':'-'}${won(t.amount)}</div>
+          </div>`).join('')}</div>`;
+    }).join('');
+  }
+
+  // 카테고리·예산 탭
+  const spent = {};
+  list.filter(t=>t.type==='expense').forEach(t => spent[t.category] = (spent[t.category]||0) + t.amount);
+  const cats = CATEGORIES.expense.filter(c => spent[c] || state.budgets[c]);
+  $('tab-stats').innerHTML = `<div class="card">
+    ${cats.length ? cats.map(c => {
+      const used = spent[c] || 0, limit = state.budgets[c] || 0;
+      const pct = limit ? Math.min(100, used/limit*100) : (outSum ? used/outSum*100 : 0);
+      return `<div class="bar-row">
+        <div class="top"><span>${c}</span>
+          <span>${won(used)}${limit ? ' / ' + won(limit) : ''}</span></div>
+        <div class="bar"><div class="${limit && used>limit?'over':''}" style="width:${pct}%"></div></div>
+      </div>`;
+    }).join('') : '<div class="empty">지출 내역이 없어요.</div>'}
+    <label style="margin-top:16px">예산 설정 (카테고리 선택 후 금액 입력, 0이면 삭제)</label>
+    <div style="display:flex;gap:6px">
+      <select id="bCat" style="flex:1">${CATEGORIES.expense.map(c=>`<option>${c}</option>`).join('')}</select>
+      <input id="bAmt" type="number" inputmode="numeric" placeholder="월 한도" style="flex:1">
+    </div>
+    <div class="btns"><button class="save" id="bSave">예산 저장</button></div>
+  </div>`;
+  $('bSave').onclick = () => {
+    const c = $('bCat').value, v = Number($('bAmt').value);
+    if (v > 0) state.budgets[c] = v; else delete state.budgets[c];
+    save(); render();
+  };
+
+  // 고정비 탭: 등록된 규칙 목록
+  $('recurList').innerHTML = state.recurring.length
+    ? '<div class="note" style="margin-bottom:4px">등록된 고정비 (누르면 삭제)</div>' +
+      state.recurring.map(r => `
+        <div class="item recur" data-rid="${r.id}">
+          <div><div class="cat">${escapeHtml(r.memo || r.category)}</div>
+               <div class="memo">매달 ${r.day}일 · ${r.category} · ${r.pay}</div></div>
+          <div class="amt ${r.type==='income'?'inc':'exp'}">${r.type==='income'?'+':'-'}${won(r.amount)}</div>
+        </div>`).join('')
+    : '<div class="empty">등록된 고정비가 없어요.</div>';
+
+  $('backup').value = JSON.stringify(state);
+}
+
+/* =========================================================
+   고정비 자동 등록
+   규칙마다 '등록한 달 ~ 이번 달'을 돌면서, 아직 안 만든 달이면 내역을 추가.
+   (미래 달은 만들지 않음. 자동 추가된 내역을 지워도 다시 생기지 않음)
+   ========================================================= */
+function applyRecurring() {
+  const nowKey = ym(new Date());
+  let added = 0;
+  state.recurring.forEach(r => {
+    let [y, m] = r.start.split('-').map(Number);
+    while (`${y}-${String(m).padStart(2,'0')}` <= nowKey) {
+      const key = `${y}-${String(m).padStart(2,'0')}`;
+      const doneKey = r.id + '|' + key;
+      if (!state.recurDone[doneKey]) {
+        const lastDay = new Date(y, m, 0).getDate();          // 그 달의 마지막 날
+        const day = Math.min(r.day, lastDay);
+        const date = `${key}-${String(day).padStart(2,'0')}`;
+        // 이번 달이라도 날짜가 아직 안 왔으면 건너뜀 (그날 이후 열면 추가됨)
+        if (key === nowKey && day > new Date().getDate()) break;
+        state.tx.push({ id: Date.now() + Math.random(), type: r.type, amount: r.amount, date,
+                        category: r.category, pay: r.pay, memo: r.memo, recurId: r.id });
+        state.recurDone[doneKey] = true;
+        added++;
+      }
+      m++; if (m > 12) { m = 1; y++; }
+    }
+  });
+  if (added) save();
+}
+
+// 고정비 입력 폼
+let rType = 'expense';
+function setRType(type) {
+  rType = type;
+  document.querySelectorAll('#rSeg button').forEach(b => b.classList.toggle('on', b.dataset.type===type));
+  $('rCat').innerHTML = CATEGORIES[type].map(c => `<option>${c}</option>`).join('');
+}
+document.querySelectorAll('#rSeg button').forEach(b => b.onclick = () => setRType(b.dataset.type));
+setRType('expense');
+
+$('rSave').onclick = () => {
+  const amount = Number($('rAmount').value), day = Number($('rDay').value);
+  if (!amount || amount <= 0) { $('rMsg').textContent = '금액을 입력하세요.'; return; }
+  if (!(day >= 1 && day <= 31)) { $('rMsg').textContent = '날짜는 1~31 사이로 입력하세요.'; return; }
+  state.recurring.push({ id: Date.now(), type: rType, amount, day, category: $('rCat').value,
+                         pay: $('rPay').value, memo: $('rMemo').value.trim(), start: ym(new Date()) });
+  applyRecurring(); save(); render();
+  $('rAmount').value = $('rDay').value = $('rMemo').value = '';
+  $('rMsg').textContent = '등록했어요.';
+};
+
+// 고정비 삭제 (이미 들어간 과거 내역은 그대로 둠)
+let pendingDel = null;
+$('recurList').onclick = e => {
+  const row = e.target.closest('.recur');
+  if (!row) return;
+  const id = Number(row.dataset.rid);
+  if (pendingDel !== id) {           // 실수 방지: 한 번 더 눌러야 삭제
+    pendingDel = id;
+    row.querySelector('.memo').textContent = '한 번 더 누르면 삭제돼요';
+    return;
+  }
+  state.recurring = state.recurring.filter(r => r.id !== id);
+  pendingDel = null; save(); render();
+};
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* =========================================================
+   5. 입력 폼 (추가 / 수정 / 삭제)
+   ========================================================= */
+function setType(type) {
+  formType = type;
+  document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.type===type));
+  $('fCat').innerHTML = CATEGORIES[type].map(c => `<option>${c}</option>`).join('');
+}
+
+function openForm(tx) {
+  editingId = tx ? tx.id : null;
+  $('formTitle').textContent = tx ? '내역 수정' : '내역 추가';
+  $('delBtn').style.display = tx ? '' : 'none';
+  setType(tx ? tx.type : 'expense');
+  $('fAmount').value = tx ? tx.amount : '';
+  const today = new Date();
+  $('fDate').value = tx ? tx.date
+    : (ym(today) === ym(cur) ? today.toISOString().slice(0,10) : ym(cur) + '-01');
+  if (tx) { $('fCat').value = tx.category; $('fPay').value = tx.pay; }
+  $('fMemo').value = tx ? tx.memo : '';
+  $('sheetBg').style.display = 'block';
+  setTimeout(() => $('fAmount').focus(), 50);
+}
+function closeForm() { $('sheetBg').style.display = 'none'; }
+
+$('form').onsubmit = e => {
+  e.preventDefault();
+  const amount = Number($('fAmount').value);
+  if (!amount || amount <= 0) return;
+  const data = { type: formType, amount, date: $('fDate').value,
+                 category: $('fCat').value, pay: $('fPay').value, memo: $('fMemo').value.trim() };
+  if (editingId) {
+    Object.assign(state.tx.find(t => t.id === editingId), data);
+  } else {
+    state.tx.push({ id: Date.now(), ...data });
+  }
+  save(); closeForm(); render();
+};
+$('delBtn').onclick = () => {
+  state.tx = state.tx.filter(t => t.id !== editingId);
+  save(); closeForm(); render();
+};
+$('cancelBtn').onclick = closeForm;
+$('sheetBg').onclick = e => { if (e.target.id === 'sheetBg') closeForm(); };
+document.querySelectorAll('.seg button').forEach(b => b.onclick = () => setType(b.dataset.type));
+
+/* =========================================================
+   6. 기타 이벤트 (월 이동, 탭, 내역 클릭, 백업)
+   ========================================================= */
+$('addBtn').onclick = () => openForm(null);
+$('prev').onclick = () => { cur.setMonth(cur.getMonth()-1); render(); };
+$('next').onclick = () => { cur.setMonth(cur.getMonth()+1); render(); };
+$('tab-list').onclick = e => {
+  const row = e.target.closest('.item');
+  if (row) openForm(state.tx.find(t => t.id === Number(row.dataset.id)));
+};
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x===b));
+  ['list','stats','recur','data'].forEach(t => $('tab-'+t).hidden = t !== b.dataset.tab);
+});
+$('copyBtn').onclick = async () => {
+  try { await navigator.clipboard.writeText($('backup').value); $('dataMsg').textContent = '복사했어요.'; }
+  catch (e) { $('backup').select(); $('dataMsg').textContent = '자동 복사가 안 돼요. 직접 선택해서 복사하세요.'; }
+};
+$('restoreBtn').onclick = () => {
+  try {
+    const d = JSON.parse($('backup').value);
+    if (!Array.isArray(d.tx)) throw 0;
+    state = { tx: d.tx, budgets: d.budgets || {}, recurring: d.recurring || [], recurDone: d.recurDone || {} };
+    applyRecurring();
+    save(); render(); $('dataMsg').textContent = '불러왔어요.';
+  } catch (e) { $('dataMsg').textContent = '형식이 올바르지 않아요.'; }
+};
+
+// 앱 설치·오프라인 지원 (지원 안 되는 환경이면 조용히 건너뜀)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+load();
+state.recurring ||= []; state.recurDone ||= {};   // 예전 데이터 호환
+applyRecurring();
+render();
+</script>
+</body>
+</html>
